@@ -1,0 +1,80 @@
+import streamlit as st
+import os
+from google import genai
+from google.genai import types
+from PIL import Image
+from dotenv import load_dotenv
+
+# 1. Initialize environment
+load_dotenv()
+
+# 2. Setup the NEW Client (picks up GOOGLE_API_KEY from .env automatically)
+client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+
+# 3. Updated Function using the 2026 SDK
+def get_gemini_response(input_prompt, image_parts):
+    # We'll use the gemini-2.5-flash model you saw in your list
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[image_parts[0], input_prompt]
+    )
+    return response.text
+
+# 4. Updated Image Setup for the NEW SDK
+def input_image_setup(uploaded_file):
+    if uploaded_file is not None:
+        bytes_data = uploaded_file.getvalue()
+        # The new SDK prefers the Part.from_bytes structure
+        image_part = types.Part.from_bytes(
+            data=bytes_data,
+            mime_type=uploaded_file.type
+        )
+        return [image_part]
+    else:
+        raise FileNotFoundError("No file uploaded")
+
+# --- REST OF YOUR STREAMLIT UI CODE REMAINS THE SAME ---
+st.set_page_config(page_title="AutoSage App")
+st.header("AutoSage App")
+
+uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Image.", use_container_width=True)
+
+input_prompt="""
+You are a automobile expert tasked with providing a detailed overview of any vehicles
+The information should be presented in a structured format as follows:
+Brand: Name of the vehicle brand.
+Model: Specific model of the vehicle.
+Launch year: Since when the vehicle is available in market
+Key Features: Describe the engine capacity, type (e.g., scooter, motorcycle, sedan, SUV), and special features(any top 3)
+             (e.g., ABS, digital display, storage capacity, safety features).
+Mileage: Provide the average mileage in km/l (kilometers per liter).
+Average Price in INR: Mention the price range of the vehicle model.
+Other Details: Include information on maintenance costs, additional benefits, and any unique selling points.
+Approximate Resale Value: Estimate the resale value of the vehicle after 10 years in Indian Rupees.
+
+"""
+
+# Create the button with a clear label
+submit = st.button("Submit")
+
+# Check if the button was clicked
+if submit:
+    # 1. Ensure a file exists before processing
+    if uploaded_file is not None:
+        # Show a loading spinner for a professional "Elite Species" feel
+        with st.spinner("Analyzing the specimen..."):
+            # 2. Prepare the image data (using your existing function)
+            image_data = input_image_setup(uploaded_file)
+            
+            # 3. Call the Gemini function (using your prompt)
+            response = get_gemini_response(input_prompt, image_data)
+            
+            # 4. Display the results
+            st.subheader("Vehicle Analysis Result:")
+            st.write(response)
+    else:
+        # Warn the user if they clicked submit without an image
+        st.warning("Please upload a vehicle image first!")
